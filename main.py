@@ -11,7 +11,7 @@ pyramid = uflow_model.PWCFeaturePyramid()
 fp1 = pyramid(img1)
 fp2 = pyramid(img2)
 
-flow_model = uflow_model.PWCFlow(num_channels_upsampled_context=0, use_cost_volume=False, use_feature_warp=False)
+flow_model = uflow_model.PWCFlow(num_channels_upsampled_context=32, use_cost_volume=False, use_feature_warp=True)
 
 flow = flow_model(fp1, fp2)
 

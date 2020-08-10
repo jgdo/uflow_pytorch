@@ -112,9 +112,8 @@ class PWCFlow(nn.Module):
             if flow_up is None or not self._use_feature_warp:
                 warped2 = features2
             else:
-                assert False, "not implemented" # TODO
-                # warp_up = uflow_utils.flow_to_warp(flow_up)
-                # warped2 = uflow_utils.resample(features2, warp_up)
+                warp_up = uflow_utils.flow_to_warp(flow_up)
+                warped2 = uflow_utils.resample(features2, warp_up)
 
             # Compute cost volume by comparing features1 and warped features2.
             features1_normalized, warped2_normalized = normalize_features(
@@ -225,7 +224,7 @@ class PWCFlow(nn.Module):
                     out_channels=num_channels,
                     kernel_size=(4, 4),
                     stride=2,
-                    padding=2))
+                    padding=1))
         return nn.ModuleList(layers)
 
     def _build_flow_layers(self):
