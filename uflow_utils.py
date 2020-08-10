@@ -114,3 +114,46 @@ def compute_cost_volume(features1, features2, max_displacement):
       cost_list.append(corr)
   cost_volume = torch.cat(cost_list, dim=1)
   return cost_volume
+
+def normalize_features(feature_list, normalize, center, moments_across_channels,
+                       moments_across_images):
+  """Normalizes feature tensors (e.g., before computing the cost volume).
+
+  Args:
+    feature_list: list of tf.tensors, each with dimensions [b, c, h, w]
+    normalize: bool flag, divide features by their standard deviation
+    center: bool flag, subtract feature mean
+    moments_across_channels: bool flag, compute mean and std across channels
+    moments_across_images: bool flag, compute mean and std across images
+
+  Returns:
+    list, normalized feature_list
+  """
+
+  # Compute feature statistics.
+
+
+  dim = [1, 2, 3] if moments_across_channels else [2, 3]
+
+  means = []
+  stds = []
+
+  for feature_image in feature_list:
+      mean = torch.mean(feature_image, dim=dim, keepdim=True)
+      std = torch.std(feature_image, dim=dim, keepdim=True)
+      means.append(mean)
+      stds.append(std)
+
+  if moments_across_images:
+    means = [torch.mean(torch.stack(means), dim=0, keepdim=False)] * len(means)
+    stds = [torch.mean(torch.stack(stds), dim=0, keepdim=False)] * len(stds)
+
+  # Center and normalize features.
+  if center:
+    feature_list = [
+        f - mean for f, mean in zip(feature_list, means)
+    ]
+  if normalize:
+    feature_list = [f / std for f, std in zip(feature_list, stds)]
+
+  return feature_list

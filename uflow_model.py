@@ -6,51 +6,6 @@ import torch.nn.functional as func
 
 import uflow_utils
 
-def normalize_features(feature_list, normalize, center, moments_across_channels,
-                       moments_across_images):
-  """Normalizes feature tensors (e.g., before computing the cost volume).
-
-  Args:
-    feature_list: list of tf.tensors, each with dimensions [b, h, w, c]
-    normalize: bool flag, divide features by their standard deviation
-    center: bool flag, subtract feature mean
-    moments_across_channels: bool flag, compute mean and std across channels
-    moments_across_images: bool flag, compute mean and std across images
-
-  Returns:
-    list, normalized feature_list
-  """
-
-  # Compute feature statistics.
-
-  # TODO
-  '''
-  statistics = collections.defaultdict(list)
-  axes = [-3, -2, -1] if moments_across_channels else [-3, -2]
-  for feature_image in feature_list:
-    mean, variance = tf.nn.moments(x=feature_image, axes=axes, keepdims=True)
-    statistics['mean'].append(mean)
-    statistics['var'].append(variance)
-
-  if moments_across_images:
-    statistics['mean'] = ([tf.reduce_mean(input_tensor=statistics['mean'])] *
-                          len(feature_list))
-    statistics['var'] = [tf.reduce_mean(input_tensor=statistics['var'])
-                        ] * len(feature_list)
-
-  statistics['std'] = [tf.sqrt(v + 1e-16) for v in statistics['var']]
-
-  # Center and normalize features.
-
-  if center:
-    feature_list = [
-        f - mean for f, mean in zip(feature_list, statistics['mean'])
-    ]
-  if normalize:
-    feature_list = [f / std for f, std in zip(feature_list, statistics['std'])]
-  '''
-  return feature_list
-
 class PWCFlow(nn.Module):
     def __init__(self,
                  leaky_relu_alpha=0.1,
@@ -116,7 +71,7 @@ class PWCFlow(nn.Module):
                 warped2 = uflow_utils.resample(features2, warp_up)
 
             # Compute cost volume by comparing features1 and warped features2.
-            features1_normalized, warped2_normalized = normalize_features(
+            features1_normalized, warped2_normalized = uflow_utils.normalize_features(
                 [features1, warped2],
                 normalize=self._normalize_before_cost_volume,
                 center=self._normalize_before_cost_volume,
