@@ -124,9 +124,7 @@ class PWCFlow(nn.Module):
                 moments_across_images=True)
 
             if self._use_cost_volume:
-                # TODO
-                #  cost_volume = compute_cost_volume(features1_normalized, warped2_normalized, max_displacement=4)
-                assert False, "not implemented"
+                cost_volume = uflow_utils.compute_cost_volume(features1_normalized, warped2_normalized, max_displacement=4)
             else:
                 concat_features = torch.cat([features1_normalized, warped2_normalized], dim=1)
                 cost_volume = self._cost_volume_surrogate_convs[level](concat_features)

@@ -70,3 +70,47 @@ def resample(source, coords):
   coords = coords.permute(0, 2, 3, 1)
   output = torch.nn.functional.grid_sample(source, coords)
   return output
+
+def compute_cost_volume(features1, features2, max_displacement):
+  """Compute the cost volume between features1 and features2.
+
+  Displace features2 up to max_displacement in any direction and compute the
+  per pixel cost of features1 and the displaced features2.
+
+  Args:
+    features1: tf.tensor of shape [b, h, w, c]
+    features2: tf.tensor of shape [b, h, w, c]
+    max_displacement: int, maximum displacement for cost volume computation.
+
+  Returns:
+    tf.tensor of shape [b, h, w, (2 * max_displacement + 1) ** 2] of costs for
+    all displacements.
+  """
+
+  # Set maximum displacement and compute the number of image shifts.
+  _, _, height, width = features1.shape
+  if max_displacement <= 0 or max_displacement >= height:
+    raise ValueError(f'Max displacement of {max_displacement} is too large.')
+
+  max_disp = max_displacement
+  num_shifts = 2 * max_disp + 1
+
+  # Pad features2 and shift it while keeping features1 fixed to compute the
+  # cost volume through correlation.
+
+  # Pad features2 such that shifts do not go out of bounds.
+  features2_padded = torch.nn.functional.pad(
+      input=features2,
+      pad=(max_disp, max_disp, max_disp, max_disp),
+      mode='constant')
+  cost_list = []
+  for i in range(num_shifts):
+    for j in range(num_shifts):
+      prod = features1 * features2_padded[:, :, i:(height + i), j:(width + j)]
+      corr = torch.mean(
+          input=prod,
+          dim=1,
+          keepdim=True)
+      cost_list.append(corr)
+  cost_volume = torch.cat(cost_list, dim=1)
+  return cost_volume
