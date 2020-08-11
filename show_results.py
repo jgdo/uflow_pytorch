@@ -25,11 +25,15 @@ def show_tensor(tensor):
 
 with torch.no_grad():
     img1, img2 = batch[0], batch[1]
-    flows = net.compute_flow(img1, img2)
+    flows, _, _ = net.compute_flow(img1, img2)
 
-    flow = uflow_utils.upsample(flows[0], is_flow=True)
-    flow = uflow_utils.upsample(flow, is_flow=True)
+    flow = flows[0] #* 0
+    #flow[:, 0] = 1
     warps = uflow_utils.flow_to_warp(flow)
+
+    #img1 = (img1 + 1) / 2
+    #img2 = (img2 + 1) / 2
+
     warped_images2 = uflow_utils.resample(img2, warps)
 
     # img_comparison = torch.cat([batch[0][0], batch[1][0], warped_images2[0]], dim=2).permute(1, 2, 0).cpu().numpy()
@@ -49,12 +53,11 @@ with torch.no_grad():
         plt.title('warped2_{}'.format(b))
         plt.show()
 
-        continue
+        #continue
 
         y, x = np.mgrid[0:H, 0:W]
-        u = flow[0, 1].cpu().numpy()
-        v = flow[0, 0].cpu().numpy()
+        u = flow[b, 0].cpu().numpy()
+        v = flow[b, 1].cpu().numpy()
         plt.quiver(x, y, u, v, angles='xy', scale_units='xy', scale=1)
         plt.gca().invert_yaxis()
         plt.show()
-

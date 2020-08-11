@@ -32,7 +32,7 @@ def flow_to_warp(flow):
 
   # Construct a grid of the image coordinates.
   B, _, height, width = flow.shape
-  i_grid, j_grid = torch.meshgrid(
+  j_grid, i_grid = torch.meshgrid(
       torch.linspace(0.0, height - 1.0, int(height)),
       torch.linspace(0.0, width - 1.0, int(width)))
   grid = torch.stack([i_grid, j_grid]).cuda()
@@ -158,6 +158,16 @@ def normalize_features(feature_list, normalize, center, moments_across_channels,
 
   return feature_list
 
-def compute_loss(img1, img2, flow, warped_images2):
-  loss = torch.nn.functional.mse_loss(warped_images2, img1)
+def compute_loss(i1, warped2, flow, use_mag_loss=True):
+  loss = torch.nn.functional.smooth_l1_loss(warped2, i1)
+  if use_mag_loss:
+    flow_mag = torch.sqrt(flow[:, 0] ** 2 + flow[:, 1] ** 2)
+    mag_loss = flow_mag.mean()
+    loss += mag_loss * 1e-4
   return loss
+
+def compute_all_loss(f1, warped_f2, flows):
+  all_losses = [compute_loss(i1, f2, f) for (i1, f2, f) in zip(f1, warped_f2, flows)]
+  # all_losses = [compute_loss(f1[0], warped_f2[0], flows[0])]
+  all_losses = torch.stack(all_losses)
+  return all_losses.mean()

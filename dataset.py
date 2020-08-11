@@ -4,7 +4,7 @@ import uflow_utils
 import torch
 
 def create_minecraft_loader(batch_size=64, shuffle=True):
-    p = pickle.load(open('dataset/UFlow_data/ep1_pickle_doc.pkl', 'rb'))
+    p = pickle.load(open('dataset/UFlow_data/ep1_pickle_doc.pkl', 'rb')) # [0:100]
 
     img1 = []
     img2 = []
@@ -15,6 +15,9 @@ def create_minecraft_loader(batch_size=64, shuffle=True):
 
     img1 = uflow_utils.upsample(torch.stack(img1).cuda(), is_flow=False, scale_factor=1)
     img2 = uflow_utils.upsample(torch.stack(img2).cuda(), is_flow=False, scale_factor=1)
+
+    #img1 = img1 * 2 - 1
+    #img2 = img2 * 2 - 1
 
     dataset = TensorDataset(img1, img2)
     loader = DataLoader(

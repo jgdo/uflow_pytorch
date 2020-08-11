@@ -53,7 +53,7 @@ class PWCFlow(nn.Module):
 
         # Go top down through the levels to the second to last one to estimate flow.
         for level, (features1, features2) in reversed(
-                list(enumerate(zip(feature_pyramid1, feature_pyramid2)))[1:]):
+                list(enumerate(zip(feature_pyramid1, feature_pyramid2)))[0:]):
 
             # init flows with zeros for coarsest level if needed
             if self._shared_flow_decoder and flow_up is None:
@@ -138,7 +138,7 @@ class PWCFlow(nn.Module):
 
         # Refine flow at level 1.
         # refinement = self._refine_model(torch.cat([context, flow], dim=1))
-        refinement: Tensor = torch.cat([context, flow], dim=1)
+        refinement = torch.cat([context, flow], dim=1)
         for layer in self._refine_model:
             refinement = layer(refinement)
 
@@ -151,6 +151,9 @@ class PWCFlow(nn.Module):
         '''
         refined_flow = flow + refinement
         flows[0] = refined_flow
+
+        flows.insert(0, uflow_utils.upsample(flows[0], is_flow=True))
+        # flows.insert(0, uflow_utils.upsample(flows[0], is_flow=True))
 
         return flows
 
@@ -182,11 +185,11 @@ class PWCFlow(nn.Module):
     def _build_flow_layers(self):
         """Build layers for flow estimation."""
         # Empty list of layers level 0 because flow is only estimated at levels > 0.
-        result = nn.ModuleList([nn.ModuleList()])
+        result = nn.ModuleList()
 
         block_layers = [128, 128, 96, 64, 32]
 
-        for i in range(1, self._num_levels):
+        for i in range(0, self._num_levels):
             layers = nn.ModuleList()
             last_in_channels = (64+32) if not self._use_cost_volume else (81+32)
             if i != self._num_levels-1:
@@ -259,7 +262,7 @@ class PWCFeaturePyramid(nn.Module):
                leaky_relu_alpha=0.1,
                filters=None,
                level1_num_layers=3,
-               level1_num_filters=16,
+               level1_num_filters=32,
                level1_num_1x1=0,
                original_layer_sizes=False,
                num_levels=5,
