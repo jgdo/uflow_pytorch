@@ -3,10 +3,9 @@ auto_gpu()
 
 import torch
 import uflow_net
-import uflow_utils
-import pickle
-from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
+import os
+import dataset
 
 # just check if network forwarding works
 
@@ -15,27 +14,11 @@ import numpy as np
 
 net = uflow_net.UFlow(num_levels=3)
 
-p = pickle.load(open('dataset/UFlow_data/ep1_pickle_doc.pkl', 'rb'))
-
-img1 = []
-img2 = []
-
-for i in range(1, len(p)):
-    img1.append(torch.from_numpy(p[i-1][0]).permute(2, 0, 1) / 255.0)
-    img2.append(torch.from_numpy(p[i][0]).permute(2, 0, 1) / 255.0)
-
-img1 = uflow_utils.upsample(torch.stack(img1).cuda(), is_flow=False, scale_factor=1)
-img2 = uflow_utils.upsample(torch.stack(img2).cuda(), is_flow=False, scale_factor=1)
-
-dataset = TensorDataset(img1, img2)
-loader = DataLoader(
-    dataset,
-    batch_size=64
-)
+loader = dataset.create_minecraft_loader()
 
 optimizer = torch.optim.Adam(list(net._pyramid.parameters()) + list(net._flow_model.parameters()))
 
-for epoch in range(100):
+for epoch in range(150):
     losses = []
     for batch in loader:
         flow = net.compute_flow(batch[0], batch[1])
@@ -48,8 +31,15 @@ for epoch in range(100):
         optimizer.step()
 
     loss = np.mean(losses)
-    print("Epoch {} loss : {}".format(epoch, loss))
+    print("Epoch {} loss : {:.2f}e-6".format(epoch, loss*1e6))
 
 
-print(loss)
+os.makedirs('save', exist_ok=True)
+model_save_path = 'save/model.pt'
 
+print("Saving model to " + model_save_path)
+
+torch.save({
+            'pyramid_model': net._pyramid.state_dict(),
+            'flow_model': net._flow_model.state_dict(),
+            }, model_save_path)
