@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 
-def upsample(img, is_flow):
+def upsample(img, is_flow, scale_factor = 2):
   """Double resolution of an image or flow field.
 
   Args:
@@ -12,11 +12,11 @@ def upsample(img, is_flow):
     Resized and potentially scaled image or flow field.
   """
 
-  img_resized = nn.functional.interpolate(img, scale_factor=2, mode='bilinear', align_corners=True)
+  img_resized = nn.functional.interpolate(img, scale_factor=scale_factor, mode='bilinear', align_corners=True)
 
   if is_flow:
     # Scale flow values to be consistent with the new image size.
-    img_resized *= 2
+    img_resized *= scale_factor
 
   return img_resized
 
@@ -35,7 +35,7 @@ def flow_to_warp(flow):
   i_grid, j_grid = torch.meshgrid(
       torch.linspace(0.0, height - 1.0, int(height)),
       torch.linspace(0.0, width - 1.0, int(width)))
-  grid = torch.stack([i_grid, j_grid])
+  grid = torch.stack([i_grid, j_grid]).cuda()
 
   # add batch dimension to match the shape of flow.
   grid = grid[None]
@@ -157,3 +157,7 @@ def normalize_features(feature_list, normalize, center, moments_across_channels,
     feature_list = [f / std for f, std in zip(feature_list, stds)]
 
   return feature_list
+
+def compute_loss(img1, img2, flow, warped_images2):
+  loss = torch.nn.functional.mse_loss(warped_images2, img1)
+  return loss

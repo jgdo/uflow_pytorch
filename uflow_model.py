@@ -3,6 +3,7 @@ import collections
 import torch.nn as nn
 import torch
 import torch.nn.functional as func
+from torch import Tensor
 
 import uflow_utils
 
@@ -57,11 +58,11 @@ class PWCFlow(nn.Module):
             # init flows with zeros for coarsest level if needed
             if self._shared_flow_decoder and flow_up is None:
                 batch_size, height, width, _ = features1.shape.as_list()
-                flow_up = torch.zeros([batch_size, height, width, 2])
+                flow_up = torch.zeros([batch_size, height, width, 2]).cuda()
                 if self._num_context_up_channels:
                     num_channels = int(self._num_context_up_channels *
                                        self._channel_multiplier)
-                    context_up = torch.zeros([batch_size, height, width, num_channels])
+                    context_up = torch.zeros([batch_size, height, width, num_channels]).cuda()
 
             # Warp features2 with upsampled flow from higher level.
             if flow_up is None or not self._use_feature_warp:
@@ -137,7 +138,7 @@ class PWCFlow(nn.Module):
 
         # Refine flow at level 1.
         # refinement = self._refine_model(torch.cat([context, flow], dim=1))
-        refinement = torch.cat([context, flow], dim=1)
+        refinement: Tensor = torch.cat([context, flow], dim=1)
         for layer in self._refine_model:
             refinement = layer(refinement)
 
@@ -150,8 +151,8 @@ class PWCFlow(nn.Module):
         '''
         refined_flow = flow + refinement
         flows[0] = refined_flow
-        # TODO: check if necessary
-        return [flow.type(torch.FloatTensor) for flow in flows]
+
+        return flows
 
     def _build_cost_volume_surrogate_convs(self):
         layers = nn.ModuleList()
@@ -166,8 +167,6 @@ class PWCFlow(nn.Module):
         return layers
 
     def _build_upsample_layers(self, num_channels):
-        # TODO fix dimension
-
         """Build layers for upsampling via deconvolution."""
         layers = []
         for unused_level in range(self._num_levels):
@@ -219,7 +218,6 @@ class PWCFlow(nn.Module):
         """Build model for flow refinement using dilated convolutions."""
         layers = []
         last_in_channels = 32+2
-        # TODO layers.append(Concatenate(axis=-1))
         for c, d in [(128, 1), (128, 2), (128, 4), (96, 8), (64, 16), (32, 1)]:
             layers.append(
                 nn.Conv2d(
