@@ -9,7 +9,7 @@ import uflow_utils
 
 class PWCFlow(nn.Module):
     def __init__(self,
-                 leaky_relu_alpha=0.1,
+                 leaky_relu_alpha=0.05,
                  dropout_rate=0.25,
                  num_channels_upsampled_context=32,
                  num_levels=5,
@@ -115,15 +115,20 @@ class PWCFlow(nn.Module):
 
             flow = flow_layers[-1](context)
 
-            # TODO
-            '''
+            # dropout full layer
             if self.training and self._drop_out_rate:
-                maybe_dropout = tf.cast(
-                    tf.math.greater(tf.random.uniform([]), self._drop_out_rate),
-                    tf.bfloat16 if self._use_bfloat16 else tf.float32)
-                context *= maybe_dropout
-                flow *= maybe_dropout
-                '''
+                #if torch.rand(1) < self._drop_out_rate:
+                    maybe_dropout = (torch.rand([]) > 0).type(torch.get_default_dtype())
+                    # note that operation must not be inplace, otherwise autograd will fail pathetically
+                    context = context * maybe_dropout
+                    flow = flow * maybe_dropout
+
+                    #context *= 0
+                    #flow *= 0
+                    #context = context.detach()
+                    #flow = flow.detach()
+                    #context[:] = 0
+                    #flow[:] = 0
 
             if flow_up is not None and self._accumulate_flow:
                 flow += flow_up
@@ -142,18 +147,16 @@ class PWCFlow(nn.Module):
         for layer in self._refine_model:
             refinement = layer(refinement)
 
-        #TODO
-        '''
+        # dropout refinement
         if self.training and self._drop_out_rate:
-            refinement *= tf.cast(
-                tf.math.greater(tf.random.uniform([]), self._drop_out_rate),
-                tf.bfloat16 if self._use_bfloat16 else tf.float32)
-        '''
+            maybe_dropout = (torch.rand([]) > 0).type(torch.get_default_dtype())
+            # note that operation must not be inplace, otherwise autograd will fail pathetically
+            refinement = refinement * maybe_dropout
+
         refined_flow = flow + refinement
         flows[0] = refined_flow
 
         flows.insert(0, uflow_utils.upsample(flows[0], is_flow=True))
-        # flows.insert(0, uflow_utils.upsample(flows[0], is_flow=True))
 
         return flows
 
@@ -267,7 +270,8 @@ class PWCFeaturePyramid(nn.Module):
                original_layer_sizes=False,
                num_levels=5,
                channel_multiplier=1.,
-               pyramid_resolution='half'):
+               pyramid_resolution='half',
+               num_channels=3):
     """Constructor.
 
     Args:
@@ -313,7 +317,7 @@ class PWCFeaturePyramid(nn.Module):
     self._convs = nn.ModuleList()
     self._level1_num_1x1 = level1_num_1x1
 
-    c = 3
+    c = num_channels
 
     for level, (num_layers, num_filters) in enumerate(filters):
       group = nn.ModuleList()

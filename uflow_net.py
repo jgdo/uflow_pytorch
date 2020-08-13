@@ -1,12 +1,15 @@
 import uflow_model
 import uflow_utils
+import torch.nn as nn
 
-class UFlow:
-    def __init__(self, num_levels = 5, use_cost_volume=True):
-        self._pyramid = uflow_model.PWCFeaturePyramid(num_levels=num_levels).cuda()
+class UFlow(nn.Module):
+    def __init__(self, num_channels=3, num_levels = 5, use_cost_volume=True):
+        super(UFlow, self).__init__()
+
+        self._pyramid = uflow_model.PWCFeaturePyramid(num_levels=num_levels, num_channels=num_channels).cuda()
         self._flow_model = uflow_model.PWCFlow(num_levels = num_levels, num_channels_upsampled_context=32, use_cost_volume=use_cost_volume, use_feature_warp=True).cuda()
 
-    def compute_flow(self, img1, img2):
+    def forward(self, img1, img2):
         fp1 = self._pyramid(img1)
         fp2 = self._pyramid(img2)
         flow = self._flow_model(fp1, fp2)

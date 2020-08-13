@@ -1,5 +1,5 @@
 from gpu_utils import auto_gpu
-auto_gpu()
+auto_gpu(default_index = '0')
 
 import torch
 import uflow_net
@@ -7,23 +7,47 @@ import numpy as np
 import os
 import dataset
 import uflow_utils
+import matplotlib.pyplot as plt
 
-# just check if network forwarding works
+use_minecraft = True
+net = uflow_net.UFlow(num_channels=(3 if use_minecraft else 1), num_levels=3, use_cost_volume=True)
 
-#img1 = torch.rand((1, 3, 256, 256))
-# img2 = torch.rand_like(img1)
-
-net = uflow_net.UFlow(num_levels=3, use_cost_volume=True)
-
-loader = dataset.create_minecraft_loader()
+if use_minecraft:
+    train_loader = dataset.create_minecraft_loader(training=True)
+    test_loader = dataset.create_minecraft_loader(training=False)
+else:
+    train_loader = dataset.get_simple_moving_object_dataset()
+    test_loader = dataset.get_simple_moving_object_dataset()
 
 optimizer = torch.optim.Adam(list(net._pyramid.parameters()) + list(net._flow_model.parameters()), lr=1e-3)
 
-def get_batch_photo_loss():
+os.makedirs('save', exist_ok=True)
+model_save_path = 'save/model.pt'
+
+continue_training = True
+
+loss_history = []
+test_loss_history = []
+
+if continue_training:
+    print('Continuing with model from ' + model_save_path)
+
+    checkpoint = torch.load(model_save_path)
+
+    net.load_state_dict(checkpoint['flow_net'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+
+    loss_history = checkpoint['loss_history']
+    test_loss_history = checkpoint['test_loss_history']
+
+
+def get_test_photo_loss():
     with torch.no_grad():
+        net.eval()
+
         losses = []
-        for batch in loader:
-            flow, pf1, pf2 = net.compute_flow(batch[0], batch[1])
+        for batch in test_loader:
+            flow, pf1, pf2 = net(batch[0], batch[1])
             warp = uflow_utils.flow_to_warp(flow[0])
             warped_f2 = uflow_utils.resample(batch[1], warp)
 
@@ -34,30 +58,43 @@ def get_batch_photo_loss():
         loss = np.mean(losses)
         return loss
 
-for epoch in range(100):
-    losses = []
-    for batch in loader:
-        flow, pf1, pf2 = net.compute_flow(batch[0], batch[1])
-        loss = net.compute_loss(batch[0], batch[1], pf1, pf2, flow)
+try:
+    test_loss = test_loss_history[-1] if test_loss_history else float("nan")
+    for epoch in range(300):
+        net.train()
+        losses = []
+        for batch in train_loader:
+            flow, pf1, pf2 = net(batch[0], batch[1])
+            loss = net.compute_loss(batch[0], batch[1], pf1, pf2, flow)
 
-        losses.append(loss.item())
+            losses.append(loss.item())
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-    loss = np.mean(losses)
-    photo_loss = get_batch_photo_loss() if epoch % 10 == 9 else float("nan")
-    print("Epoch {} loss : {:.2f}e-6, pure photo loss: {:.2f}e-6".format(epoch, loss*1e6, photo_loss*1e6))
+        loss = np.mean(losses)
+        loss_history.append(loss)
+        test_loss = get_test_photo_loss() if epoch % 10 == 9 else test_loss
+        test_loss_history.append(test_loss)
+        print("Epoch {} loss : {:.2f}e-6, pure test photo loss: {:.2f}e-6".format(epoch, loss*1e6, test_loss*1e6))
 
+        if epoch % 10 == 9:
+            print("Saving model to " + model_save_path)
 
-os.makedirs('save', exist_ok=True)
-model_save_path = 'save/model.pt'
-
-print("Saving model to " + model_save_path)
-
-torch.save({
-            'pyramid_model': net._pyramid.state_dict(),
-            'flow_model': net._flow_model.state_dict(),
+            torch.save({
+                'flow_net': net.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'loss_history': loss_history,
+                'test_loss_history': test_loss_history,
             }, model_save_path)
+except KeyboardInterrupt:
+    pass
+except:
+    raise
 
+plt.figure()
+plt.plot(range(len(loss_history)), [x * 1e6 for x in loss_history])
+plt.plot(range(len(test_loss_history)), [x * 1e6 for x in test_loss_history])
+plt.legend(['training loss', 'test photometric loss'])
+plt.show()

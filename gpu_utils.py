@@ -1,20 +1,19 @@
 import subprocess
 import os
 
-def auto_gpu(index_gpu = None):
+def auto_gpu(index_gpu = None, default_index = '1'):
     if index_gpu is None:
-        result = subprocess.run(['nvidia-smi', 'pmon', '-c', '1'], stdout=subprocess.PIPE)
+        result = subprocess.run('nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits'.split(' '), stdout=subprocess.PIPE)
         lines = result.stdout.splitlines()
-        lines = [line.decode('ascii') for line in lines]
-        elements = [line.split() for line in lines if not line.startswith('#')]
-        idx_user = [(int(n[0]), n[7]) for n in elements]  # (idx, mem_util)
-        available_gpus = [idx for idx, user in idx_user if user == '-']
+        lines = [int(line.decode('ascii')) for line in lines] # get memory usage list, index is gpu number
+        available_gpus = sorted(range(len(lines)),key=lines.__getitem__) # sort GPU indices by lowest memory usage
 
         if available_gpus:
-            os.environ['CUDA_VISIBLE_DEVICES'] = str(available_gpus[0])
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(available_gpus[0]) # pick GPU with lowest mem usage
             print('Auto-found free GPU idx {}'.format(available_gpus[0]))
         else:
-            print('Warning, no free GPU could be found, using default variable')
+            print('Warning, no free GPU could be found, using default index ' + default_index)
+            os.environ['CUDA_VISIBLE_DEVICES'] = default_index
 
     else:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(index_gpu)

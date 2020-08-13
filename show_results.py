@@ -9,23 +9,33 @@ import dataset
 import uflow_utils
 import matplotlib.pyplot as plt
 
-net = uflow_net.UFlow(num_levels=3)
+use_minecraft = True
 
-data_loader = dataset.create_minecraft_loader(batch_size=4, shuffle=True)
+net = uflow_net.UFlow(num_levels=3, num_channels=(3 if use_minecraft else 1))
+
+if use_minecraft:
+    data_loader = dataset.create_minecraft_loader(training=False, batch_size=4, shuffle=True)
+else:
+    data_loader = dataset.get_simple_moving_object_dataset(batch_size=4)
 
 checkpoint = torch.load('save/model.pt')
 
-net._pyramid.load_state_dict(checkpoint['pyramid_model'])
-net._flow_model.load_state_dict(checkpoint['flow_model'])
+net.load_state_dict(checkpoint['flow_net'])
+net.eval()
 
 batch = next(iter(data_loader))
 
 def show_tensor(tensor):
-    plt.imshow(tensor.permute(1, 2, 0).cpu().numpy())
+    if tensor.shape[0] == 3:
+        numpy_img = tensor.permute(1, 2, 0).cpu().numpy()
+    else:
+        numpy_img = tensor[0].cpu().numpy()
+
+    plt.imshow(numpy_img)
 
 with torch.no_grad():
     img1, img2 = batch[0], batch[1]
-    flows, _, _ = net.compute_flow(img1, img2)
+    flows, _, _ = net(img1, img2)
 
     flow = flows[0] #* 0
     #flow[:, 0] = 1
