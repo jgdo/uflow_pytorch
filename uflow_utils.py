@@ -188,12 +188,12 @@ def compute_all_loss(f1, warped_f2, flows):
 
     B, _, H, W = f1[0].shape
 
-    smoothness_weight = 0.1
+    smoothness_weight = 0.3
     if smoothness_weight is not None and smoothness_weight > 0:
         img_gx, img_gy = image_grads(upsample(f1[0], is_flow=False, scale_factor=0.5, align_corners=False))
 
         abs_fn = lambda x: x ** 2
-        edge_constant = 50.0
+        edge_constant = 100.0
 
         weights_x = torch.exp(-abs_fn(edge_constant * img_gx).mean(dim=1, keepdim=True)) + 0.05
         weights_y = torch.exp(-abs_fn(edge_constant * img_gy).mean(dim=1, keepdim=True)) + 0.05
@@ -209,7 +209,7 @@ def compute_all_loss(f1, warped_f2, flows):
 
         all_losses.append(smooth_loss)
 
-    ssim_weight = 0.0
+    ssim_weight = 0.1
     if ssim_weight is not None and ssim_weight > 0:
         ssim_error, avg_weight = weighted_ssim(warped_f2[0], f1[0], torch.ones((B, H, W)).cuda())
 

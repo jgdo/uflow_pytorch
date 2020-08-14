@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import random
 
-def create_minecraft_loader(training, batch_size=64, shuffle=True):
+def create_minecraft_loader(training, batch_size=64, shuffle=True, use_camera_actions=False):
     p = pickle.load(open('dataset/UFlow_data/ep1_pickle_doc.pkl', 'rb'))
 
     trainratio = 0.8
@@ -19,23 +19,30 @@ def create_minecraft_loader(training, batch_size=64, shuffle=True):
 
     img1 = []
     img2 = []
+    actions = []
 
     for i in range(1, len(p)):
         img1.append(torch.from_numpy(p[i-1][0]).permute(2, 0, 1) / 255.0)
         img2.append(torch.from_numpy(p[i][0]).permute(2, 0, 1) / 255.0)
+        cam_actions = torch.FloatTensor(p[i-1][1]['camera'] / 10.0) if use_camera_actions else torch.tensor([0.0, 0.0])
+        actions.append(cam_actions)
 
     print('Loaded {} image pairs'.format(len(img1)))
 
     img1 = uflow_utils.upsample(torch.stack(img1).cuda(), is_flow=False, scale_factor=1)
     img2 = uflow_utils.upsample(torch.stack(img2).cuda(), is_flow=False, scale_factor=1)
+    actions = torch.stack(actions).cuda()
 
-    #img1 = uflow_utils.upsample(img1, is_flow=False, scale_factor=2)
-    #img2 = uflow_utils.upsample(img2, is_flow=False, scale_factor=2)
+    if False and training:
+        img1 = uflow_utils.upsample(img1, is_flow=False, scale_factor=0.5)
+        img2 = uflow_utils.upsample(img2, is_flow=False, scale_factor=0.5)
+        img1 = uflow_utils.upsample(img1, is_flow=False, scale_factor=2)
+        img2 = uflow_utils.upsample(img2, is_flow=False, scale_factor=2)
 
     # img1 = img1 * 2 - 1
     # img2 = img2 * 2 - 1
 
-    dataset = TensorDataset(img1, img2)
+    dataset = TensorDataset(img1, img2, actions)
     loader = DataLoader(
         dataset,
         batch_size=batch_size,

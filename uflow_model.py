@@ -18,7 +18,8 @@ class PWCFlow(nn.Module):
                  use_cost_volume=True,
                  use_feature_warp=True,
                  accumulate_flow=True,
-                 shared_flow_decoder=False):
+                 shared_flow_decoder=False,
+                 action_channels=None):
         super(PWCFlow, self).__init__()
 
         self._leaky_relu_alpha = leaky_relu_alpha
@@ -31,6 +32,7 @@ class PWCFlow(nn.Module):
         self._use_feature_warp = use_feature_warp
         self._accumulate_flow = accumulate_flow
         self._shared_flow_decoder = shared_flow_decoder
+        self._action_channels=action_channels
 
         self._refine_model = self._build_refinement_model()
         self._flow_layers = self._build_flow_layers()
@@ -43,13 +45,19 @@ class PWCFlow(nn.Module):
             # pylint:disable=invalid-name
             self._1x1_shared_decoder = self._build_1x1_shared_decoder()
 
-    def forward(self, feature_pyramid1, feature_pyramid2):
+    def forward(self, feature_pyramid1, feature_pyramid2, actions=None):
         """Run the model."""
         context = None
         flow = None
         flow_up = None
         context_up = None
         flows = []
+
+        # make sure that actions are provided iff network is configured for action use
+        if actions is not None:
+            assert self._action_channels == actions.shape[1]
+        else:
+            assert self._action_channels is None
 
         # Go top down through the levels to the second to last one to estimate flow.
         for level, (features1, features2) in reversed(
@@ -101,6 +109,12 @@ class PWCFlow(nn.Module):
                 else:
                     x_in = torch.cat([context_up, flow_up, cost_volume, features1], dim=1)
 
+            if actions is not None:
+                # convert every entry in actions to a channel filled with this value and attach it to flow input
+                _, _, H, W = features1.shape
+                action_tensor = actions[:, :, None, None].repeat(1, 1, H, W)
+                x_in = torch.cat([x_in, action_tensor], dim=1)
+
             # Use dense-net connections.
             x_out = None
             if self._shared_flow_decoder:
@@ -117,18 +131,10 @@ class PWCFlow(nn.Module):
 
             # dropout full layer
             if self.training and self._drop_out_rate:
-                #if torch.rand(1) < self._drop_out_rate:
-                    maybe_dropout = (torch.rand([]) > 0).type(torch.get_default_dtype())
-                    # note that operation must not be inplace, otherwise autograd will fail pathetically
-                    context = context * maybe_dropout
-                    flow = flow * maybe_dropout
-
-                    #context *= 0
-                    #flow *= 0
-                    #context = context.detach()
-                    #flow = flow.detach()
-                    #context[:] = 0
-                    #flow[:] = 0
+                maybe_dropout = (torch.rand([]) > self._drop_out_rate).type(torch.get_default_dtype())
+                # note that operation must not be inplace, otherwise autograd will fail pathetically
+                context = context * maybe_dropout
+                flow = flow * maybe_dropout
 
             if flow_up is not None and self._accumulate_flow:
                 flow += flow_up
@@ -149,7 +155,7 @@ class PWCFlow(nn.Module):
 
         # dropout refinement
         if self.training and self._drop_out_rate:
-            maybe_dropout = (torch.rand([]) > 0).type(torch.get_default_dtype())
+            maybe_dropout = (torch.rand([]) > self._drop_out_rate).type(torch.get_default_dtype())
             # note that operation must not be inplace, otherwise autograd will fail pathetically
             refinement = refinement * maybe_dropout
 
@@ -195,8 +201,11 @@ class PWCFlow(nn.Module):
         for i in range(0, self._num_levels):
             layers = nn.ModuleList()
             last_in_channels = (64+32) if not self._use_cost_volume else (81+32)
+            if self._action_channels is not None:
+                last_in_channels += self._action_channels
             if i != self._num_levels-1:
                 last_in_channels += 2 + self._num_context_up_channels
+
             for c in block_layers:
                 layers.append(
                     nn.Sequential(

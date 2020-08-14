@@ -9,22 +9,29 @@ import dataset
 import uflow_utils
 import matplotlib.pyplot as plt
 
+# Whether to continue training from previous checkpoint or start new training
+continue_training = False
+
+num_epochs = 500
+
 use_minecraft = True
-net = uflow_net.UFlow(num_channels=(3 if use_minecraft else 1), num_levels=3, use_cost_volume=True)
+
+# If True, camera actions from dataset will be used, if False, actions will be set to zero
+use_minecraft_camera_actions = True
+
+net = uflow_net.UFlow(num_channels=(3 if use_minecraft else 1), num_levels=3, use_cost_volume=True, action_channels=(2 if use_minecraft else None))
 
 if use_minecraft:
-    train_loader = dataset.create_minecraft_loader(training=True)
-    test_loader = dataset.create_minecraft_loader(training=False)
+    train_loader = dataset.create_minecraft_loader(training=True, use_camera_actions=use_minecraft_camera_actions)
+    test_loader = dataset.create_minecraft_loader(training=False, use_camera_actions=use_minecraft_camera_actions)
 else:
     train_loader = dataset.get_simple_moving_object_dataset()
     test_loader = dataset.get_simple_moving_object_dataset()
 
-optimizer = torch.optim.Adam(list(net._pyramid.parameters()) + list(net._flow_model.parameters()), lr=1e-3)
+optimizer = torch.optim.Adam(list(net._pyramid.parameters()) + list(net._flow_model.parameters()), lr=3e-4)
 
 os.makedirs('save', exist_ok=True)
 model_save_path = 'save/model.pt'
-
-continue_training = True
 
 loss_history = []
 test_loss_history = []
@@ -47,7 +54,7 @@ def get_test_photo_loss():
 
         losses = []
         for batch in test_loader:
-            flow, pf1, pf2 = net(batch[0], batch[1])
+            flow, pf1, pf2 = net(batch[0], batch[1], batch[2])
             warp = uflow_utils.flow_to_warp(flow[0])
             warped_f2 = uflow_utils.resample(batch[1], warp)
 
@@ -60,11 +67,11 @@ def get_test_photo_loss():
 
 try:
     test_loss = test_loss_history[-1] if test_loss_history else float("nan")
-    for epoch in range(300):
+    for epoch in range(num_epochs):
         net.train()
         losses = []
         for batch in train_loader:
-            flow, pf1, pf2 = net(batch[0], batch[1])
+            flow, pf1, pf2 = net(batch[0], batch[1], batch[2])
             loss = net.compute_loss(batch[0], batch[1], pf1, pf2, flow)
 
             losses.append(loss.item())
