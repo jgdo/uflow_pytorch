@@ -3,7 +3,6 @@ import collections
 import torch.nn as nn
 import torch
 import torch.nn.functional as func
-from torch import Tensor
 
 import uflow_utils
 
@@ -61,7 +60,7 @@ class PWCFlow(nn.Module):
 
         # Go top down through the levels to the second to last one to estimate flow.
         for level, (features1, features2) in reversed(
-                list(enumerate(zip(feature_pyramid1, feature_pyramid2)))[0:]):
+                list(enumerate(zip(feature_pyramid1, feature_pyramid2)))[1:]):
 
             # init flows with zeros for coarsest level if needed
             if self._shared_flow_decoder and flow_up is None:
@@ -109,11 +108,15 @@ class PWCFlow(nn.Module):
                 else:
                     x_in = torch.cat([context_up, flow_up, cost_volume, features1], dim=1)
 
-            if actions is not None:
+            if self._action_channels is not None and self._action_channels > 0:
                 # convert every entry in actions to a channel filled with this value and attach it to flow input
-                _, _, H, W = features1.shape
+                B, _, H, W = features1.shape
+                # additionally append xy position augmentation
                 action_tensor = actions[:, :, None, None].repeat(1, 1, H, W)
-                x_in = torch.cat([x_in, action_tensor], dim=1)
+                gy, gx = torch.meshgrid([torch.arange(H).float(), torch.arange(W).float()])
+                gx = gx.repeat(B, 1, 1, 1).cuda()
+                gy = gy.repeat(B, 1, 1, 1).cuda()
+                x_in = torch.cat([x_in, action_tensor, gx, gy], dim=1)
 
             # Use dense-net connections.
             x_out = None
@@ -163,6 +166,7 @@ class PWCFlow(nn.Module):
         flows[0] = refined_flow
 
         flows.insert(0, uflow_utils.upsample(flows[0], is_flow=True))
+        flows.insert(0, uflow_utils.upsample(flows[0], is_flow=True))
 
         return flows
 
@@ -202,7 +206,7 @@ class PWCFlow(nn.Module):
             layers = nn.ModuleList()
             last_in_channels = (64+32) if not self._use_cost_volume else (81+32)
             if self._action_channels is not None:
-                last_in_channels += self._action_channels
+                last_in_channels += self._action_channels + 2 # 2 for xy augmentation
             if i != self._num_levels-1:
                 last_in_channels += 2 + self._num_context_up_channels
 

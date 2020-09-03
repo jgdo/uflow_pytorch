@@ -1,6 +1,9 @@
 import torch.nn as nn
 import torch
+from absl import flags
+import uflow_flags
 
+FLAGS = flags.FLAGS
 
 def upsample(img, is_flow, scale_factor=2.0, align_corners=True):
     """Double resolution of an image or flow field.
@@ -183,17 +186,18 @@ def compute_loss(i1, warped2, flow, use_mag_loss=False):
 
 
 def compute_all_loss(f1, warped_f2, flows):
-    #all_losses = [compute_loss(i1, f2, f) for (i1, f2, f) in zip(f1, warped_f2, flows)]
+    # all_losses = [compute_loss(i1, f2, f) for (i1, f2, f) in zip(f1, warped_f2, flows)]
     all_losses = [compute_loss(f1[0], warped_f2[0], flows[0])]
 
     B, _, H, W = f1[0].shape
 
-    smoothness_weight = 0.3
+    smoothness_weight = FLAGS.weight_smooth1
     if smoothness_weight is not None and smoothness_weight > 0:
         img_gx, img_gy = image_grads(upsample(f1[0], is_flow=False, scale_factor=0.5, align_corners=False))
 
-        abs_fn = lambda x: x ** 2
-        edge_constant = 100.0
+        # abs_fn = lambda x: x ** 2
+        abs_fn = lambda x: (x ** 2 + 0.0001)**0.5
+        edge_constant = FLAGS.smoothness_edge_constant
 
         weights_x = torch.exp(-abs_fn(edge_constant * img_gx).mean(dim=1, keepdim=True)) + 0.05
         weights_y = torch.exp(-abs_fn(edge_constant * img_gy).mean(dim=1, keepdim=True)) + 0.05
@@ -209,7 +213,7 @@ def compute_all_loss(f1, warped_f2, flows):
 
         all_losses.append(smooth_loss)
 
-    ssim_weight = 0.1
+    ssim_weight = FLAGS.weight_ssim
     if ssim_weight is not None and ssim_weight > 0:
         ssim_error, avg_weight = weighted_ssim(warped_f2[0], f1[0], torch.ones((B, H, W)).cuda())
 
