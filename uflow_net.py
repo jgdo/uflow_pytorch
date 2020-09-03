@@ -12,6 +12,13 @@ class UFlow(nn.Module):
                                                action_channels=action_channels).cuda()
 
     def forward(self, img1, img2, actions=None):
+        """Compute the flow between image pairs
+
+        :param img1: [BCHW] image 1 batch
+        :param img2: [BCHW] image 2 batch
+        :param actions: None or [BC] self-action for each pair, C == self.action_channels
+        :return: [B2HW] flow tensor for each image pair in batch, feature pyramid list for img pairs
+        """
         fp1 = self._pyramid(img1)
         fp2 = self._pyramid(img2)
         flow = self._flow_model(fp1, fp2, actions)
