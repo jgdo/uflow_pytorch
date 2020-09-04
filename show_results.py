@@ -30,7 +30,7 @@ def main(argv):
     else:
         data_loader = dataset.get_simple_moving_object_dataset(batch_size=4)
 
-    checkpoint = torch.load('save/model.pt')
+    checkpoint = torch.load('save/model.pt', map_location=gpu_utils.device)
 
     net.load_state_dict(checkpoint['flow_net'])
     net.eval()

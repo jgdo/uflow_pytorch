@@ -204,7 +204,7 @@ class PWCFlow(nn.Module):
         for i in range(0, self._num_levels):
             layers = nn.ModuleList()
             last_in_channels = (64+32) if not self._use_cost_volume else (81+32)
-            if self._action_channels is not None:
+            if self._action_channels is not None and self._action_channels > 0:
                 last_in_channels += self._action_channels + 2 # 2 for xy augmentation
             if i != self._num_levels-1:
                 last_in_channels += 2 + self._num_context_up_channels
