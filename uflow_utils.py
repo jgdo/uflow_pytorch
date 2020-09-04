@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch
 from absl import flags
+
+import gpu_utils
 import uflow_flags
 
 FLAGS = flags.FLAGS
@@ -41,7 +43,7 @@ def flow_to_warp(flow):
     j_grid, i_grid = torch.meshgrid(
         torch.linspace(0.0, height - 1.0, int(height)),
         torch.linspace(0.0, width - 1.0, int(width)))
-    grid = torch.stack([i_grid, j_grid]).cuda()
+    grid = torch.stack([i_grid, j_grid]).to(gpu_utils.device)
 
     # add batch dimension to match the shape of flow.
     grid = grid[None]
@@ -215,7 +217,7 @@ def compute_all_loss(f1, warped_f2, flows):
 
     ssim_weight = FLAGS.weight_ssim
     if ssim_weight is not None and ssim_weight > 0:
-        ssim_error, avg_weight = weighted_ssim(warped_f2[0], f1[0], torch.ones((B, H, W)).cuda())
+        ssim_error, avg_weight = weighted_ssim(warped_f2[0], f1[0], torch.ones((B, H, W)).to(gpu_utils.device))
 
         ssim_loss = ssim_weight * (
                 (ssim_error * avg_weight).sum() / ((avg_weight).sum() + 1e-16))

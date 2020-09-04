@@ -6,10 +6,10 @@ class UFlow(nn.Module):
     def __init__(self, num_channels=3, num_levels = 5, use_cost_volume=True, action_channels = 0):
         super(UFlow, self).__init__()
 
-        self._pyramid = uflow_model.PWCFeaturePyramid(num_levels=num_levels, num_channels=num_channels).cuda()
+        self._pyramid = uflow_model.PWCFeaturePyramid(num_levels=num_levels, num_channels=num_channels)
         self._flow_model = uflow_model.PWCFlow(num_levels = num_levels, num_channels_upsampled_context=32,
                                                use_cost_volume=use_cost_volume, use_feature_warp=True,
-                                               action_channels=action_channels).cuda()
+                                               action_channels=action_channels)
 
     def forward(self, img1, img2, actions=None):
         """Compute the flow between image pairs

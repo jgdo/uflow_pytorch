@@ -2,6 +2,7 @@ import pickle
 from torch.utils.data import DataLoader, TensorDataset
 import uflow_utils
 import torch
+import gpu_utils
 
 import cv2
 import numpy as np
@@ -41,9 +42,9 @@ def create_minecraft_loader(training, batch_size=64, shuffle=True, use_camera_ac
 
     print('Loaded {} image pairs'.format(len(img1)))
 
-    img1 = uflow_utils.upsample(torch.stack(img1).cuda(), is_flow=False, scale_factor=1)
-    img2 = uflow_utils.upsample(torch.stack(img2).cuda(), is_flow=False, scale_factor=1)
-    actions = torch.stack(actions).cuda()
+    img1 = uflow_utils.upsample(torch.stack(img1).to(gpu_utils.device), is_flow=False, scale_factor=1)
+    img2 = uflow_utils.upsample(torch.stack(img2).to(gpu_utils.device), is_flow=False, scale_factor=1)
+    actions = torch.stack(actions).to(gpu_utils.device)
 
     if False and training:
         img1 = uflow_utils.upsample(img1, is_flow=False, scale_factor=0.5)
@@ -176,8 +177,8 @@ def gen_seq(seq_len, batch_size, H, W, do_train):
     for b in range(batch_size):
         obj[:, b, 0], bg[:, b, 0], v[b] = generate_moving_seq(seq_len, H, W, do_train)
 
-    obj = torch.from_numpy(obj).cuda()
-    bg = torch.from_numpy(bg).cuda()
+    obj = torch.from_numpy(obj).to(gpu_utils.device)
+    bg = torch.from_numpy(bg).to(gpu_utils.device)
     combined = torch.clamp(obj + bg, 0, 1)
     return bg, obj, combined, v
 
@@ -195,8 +196,8 @@ def get_simple_moving_object_dataset(batch_size=64):
             img1.append(data[frame_i - 1, seq_i])
             img2.append(data[frame_i, seq_i])
 
-    img1 = torch.stack(img1).cuda()
-    img2 = torch.stack(img2).cuda()
+    img1 = torch.stack(img1).to(gpu_utils.device)
+    img2 = torch.stack(img2).to(gpu_utils.device)
 
     dataset = TensorDataset(img1, img2)
     loader = DataLoader(

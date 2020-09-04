@@ -1,8 +1,7 @@
-import collections
-
 import torch.nn as nn
 import torch
 import torch.nn.functional as func
+import gpu_utils
 
 import uflow_utils
 
@@ -65,11 +64,11 @@ class PWCFlow(nn.Module):
             # init flows with zeros for coarsest level if needed
             if self._shared_flow_decoder and flow_up is None:
                 batch_size, height, width, _ = features1.shape.as_list()
-                flow_up = torch.zeros([batch_size, height, width, 2]).cuda()
+                flow_up = torch.zeros([batch_size, height, width, 2]).to(gpu_utils.device)
                 if self._num_context_up_channels:
                     num_channels = int(self._num_context_up_channels *
                                        self._channel_multiplier)
-                    context_up = torch.zeros([batch_size, height, width, num_channels]).cuda()
+                    context_up = torch.zeros([batch_size, height, width, num_channels]).to(gpu_utils.device)
 
             # Warp features2 with upsampled flow from higher level.
             if flow_up is None or not self._use_feature_warp:
@@ -114,8 +113,8 @@ class PWCFlow(nn.Module):
                 # additionally append xy position augmentation
                 action_tensor = actions[:, :, None, None].repeat(1, 1, H, W)
                 gy, gx = torch.meshgrid([torch.arange(H).float(), torch.arange(W).float()])
-                gx = gx.repeat(B, 1, 1, 1).cuda()
-                gy = gy.repeat(B, 1, 1, 1).cuda()
+                gx = gx.repeat(B, 1, 1, 1).to(gpu_utils.device)
+                gy = gy.repeat(B, 1, 1, 1).to(gpu_utils.device)
                 x_in = torch.cat([x_in, action_tensor, gx, gy], dim=1)
 
             # Use dense-net connections.

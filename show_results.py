@@ -1,6 +1,4 @@
-from gpu_utils import auto_gpu
-auto_gpu()
-
+import gpu_utils
 import torch
 from absl import flags, app
 import uflow_net
@@ -14,14 +12,17 @@ import uflow_flags
 FLAGS = flags.FLAGS
 
 def main(argv):
+    gpu_utils.setup_gpu()
+
     use_minecraft = FLAGS.dataset == 'minecraft'
 
     if use_minecraft:
         action_channels = 2 if FLAGS.use_minecraft_camera_actions else 0
     else:
-        None
+        action_channels = None
 
-    net = uflow_net.UFlow(num_levels=3, num_channels=(3 if use_minecraft else 1), action_channels=action_channels)
+    net = uflow_net.UFlow(num_levels=3, num_channels=(3 if use_minecraft else 1),
+                          action_channels=action_channels).to(gpu_utils.device)
 
     if use_minecraft:
         data_loader = dataset.create_minecraft_loader(training=False, batch_size=4, shuffle=True,

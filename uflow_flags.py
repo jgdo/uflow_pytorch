@@ -19,6 +19,9 @@ flags.DEFINE_integer('batch_size', 64,
 
 flags.DEFINE_bool('continue_training', False, 'If true, continue training at previous checkpoint, otherwise start over.')
 
+flags.DEFINE_string('device', 'auto',
+                    'Device to use, i.e. "cpu" or "cuda:0", or "auto" to automatically select best GPU')
+
 # loss flags
 flags.DEFINE_float('weight_smooth1', 0.2, 'Weight for smoothness loss.')
 flags.DEFINE_float('smoothness_edge_constant', 100.,
