@@ -11,6 +11,60 @@ import uflow_flags
 
 FLAGS = flags.FLAGS
 
+def show_results(net, data_loader, epoch, max_B = 4):
+    net.eval()
+
+    batch = next(iter(data_loader))
+    batch = [entry[0:min(len(entry), max_B)] for entry in batch]
+
+    def show_tensor(tensor):
+        if tensor.shape[0] == 3:
+            numpy_img = tensor.permute(1, 2, 0).cpu().numpy()
+        else:
+            numpy_img = tensor[0].cpu().numpy()
+
+        plt.imshow(numpy_img)
+
+    with torch.no_grad():
+        img1, img2 = batch[0], batch[1]
+        # call the network with image pair batches and actions
+        flows, _, _ = net(*batch)
+
+        flow = flows[0]  # * 0
+        # flow[:, 0] = 1
+        warps = uflow_utils.flow_to_warp(flow)
+
+        # img1 = (img1 + 1) / 2
+        # img2 = (img2 + 1) / 2
+
+        warped_images2 = uflow_utils.resample(img2, warps)
+
+        # img_comparison = torch.cat([batch[0][0], batch[1][0], warped_images2[0]], dim=2).permute(1, 2, 0).cpu().numpy()
+        B, _, H, W = warped_images2.shape
+
+        for b in range(B):
+            # plt.imshow(img_comparison)
+            show_tensor(img2[b])
+            plt.title('Epoch {} img2_{}'.format(epoch, b))
+            plt.show()
+
+            show_tensor(img1[b])
+            plt.title('Epoch {} img1_{}'.format(epoch, b))
+            plt.show()
+
+            show_tensor(warped_images2[b])
+            plt.title('Epoch {} warped2_{}'.format(epoch, b))
+            plt.show()
+
+            # continue
+            plt.figure(figsize=(10, 10))
+            y, x = np.mgrid[0:H, 0:W]
+            u = flow[b, 0].cpu().numpy()
+            v = flow[b, 1].cpu().numpy()
+            plt.quiver(x, y, u, v, angles='xy', scale_units='xy', scale=1, width=0.0010)
+            plt.gca().invert_yaxis()
+            plt.show()
+
 def main(argv):
     gpu_utils.setup_gpu()
 
@@ -33,57 +87,8 @@ def main(argv):
     checkpoint = torch.load('save/model.pt', map_location=gpu_utils.device)
 
     net.load_state_dict(checkpoint['flow_net'])
-    net.eval()
 
-    batch = next(iter(data_loader))
-
-    def show_tensor(tensor):
-        if tensor.shape[0] == 3:
-            numpy_img = tensor.permute(1, 2, 0).cpu().numpy()
-        else:
-            numpy_img = tensor[0].cpu().numpy()
-
-        plt.imshow(numpy_img)
-
-    with torch.no_grad():
-        img1, img2 = batch[0], batch[1]
-        # call the network with image pair batches and actions
-        flows, _, _ = net(img1, img2, batch[2])
-
-        flow = flows[0] #* 0
-        #flow[:, 0] = 1
-        warps = uflow_utils.flow_to_warp(flow)
-
-        #img1 = (img1 + 1) / 2
-        #img2 = (img2 + 1) / 2
-
-        warped_images2 = uflow_utils.resample(img2, warps)
-
-        # img_comparison = torch.cat([batch[0][0], batch[1][0], warped_images2[0]], dim=2).permute(1, 2, 0).cpu().numpy()
-        B, _, H, W = warped_images2.shape
-
-        for b in range(B):
-            # plt.imshow(img_comparison)
-            show_tensor(img2[b])
-            plt.title('img2_{}'.format(b))
-            plt.show()
-
-            show_tensor(img1[b])
-            plt.title('img1_{}'.format(b))
-            plt.show()
-
-            show_tensor(warped_images2[b])
-            plt.title('warped2_{}'.format(b))
-            plt.show()
-
-            #continue
-            plt.figure(figsize=(10, 10))
-            y, x = np.mgrid[0:H, 0:W]
-            u = flow[b, 0].cpu().numpy()
-            v = flow[b, 1].cpu().numpy()
-            plt.quiver(x, y, u, v, angles='xy', scale_units='xy', scale=1, width=0.0010)
-            plt.gca().invert_yaxis()
-            plt.show()
+    show_results(net, data_loader, checkpoint['epoch'])
 
 if __name__ == '__main__':
   app.run(main)

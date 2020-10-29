@@ -8,6 +8,7 @@ import dataset
 import uflow_utils
 import matplotlib.pyplot as plt
 import uflow_flags
+from show_results import show_results
 
 
 def main(argv):
@@ -35,7 +36,7 @@ def main(argv):
         train_loader = dataset.get_simple_moving_object_dataset()
         test_loader = dataset.get_simple_moving_object_dataset()
 
-    optimizer = torch.optim.Adam(list(net._pyramid.parameters()) + list(net._flow_model.parameters()), lr=1e-3)
+    optimizer = torch.optim.Adam(list(net._pyramid.parameters()) + list(net._flow_model.parameters()), lr=1e-4)
 
     os.makedirs('save', exist_ok=True)
     model_save_path = 'save/model.pt'
@@ -54,13 +55,13 @@ def main(argv):
         loss_history = checkpoint['loss_history']
         test_loss_history = checkpoint['test_loss_history']
 
-    def get_test_photo_loss():
+    def get_test_photo_loss(epoch):
         with torch.no_grad():
             net.eval()
 
             losses = []
             for batch in test_loader:
-                flow, pf1, pf2 = net(batch[0], batch[1], batch[2])
+                flow, pf1, pf2 = net(*batch)
                 warp = uflow_utils.flow_to_warp(flow[0])
                 warped_f2 = uflow_utils.resample(batch[1], warp)
 
@@ -69,6 +70,8 @@ def main(argv):
                 losses.append(loss.item())
 
             loss = np.mean(losses)
+
+            show_results(net, test_loader, epoch, 2)
             return loss
 
     try:
@@ -77,7 +80,7 @@ def main(argv):
             net.train()
             losses = []
             for batch in train_loader:
-                flow, pf1, pf2 = net(batch[0], batch[1], batch[2])
+                flow, pf1, pf2 = net(*batch)
                 loss = net.compute_loss(batch[0], batch[1], pf1, pf2, flow)
 
                 losses.append(loss.item())
@@ -88,7 +91,7 @@ def main(argv):
 
             loss = np.mean(losses)
             loss_history.append(loss)
-            test_loss = get_test_photo_loss() if epoch % 10 == 9 else test_loss
+            test_loss = get_test_photo_loss(epoch) if epoch % 10 == 9 else test_loss
             test_loss_history.append(test_loss)
             print(
                 "Epoch {} loss : {:.2f}e-6, pure test photo loss: {:.2f}e-6".format(epoch, loss * 1e6, test_loss * 1e6))

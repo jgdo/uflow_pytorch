@@ -119,7 +119,7 @@ def generate_v(t, do_train, S):
 
 
 def generate_moving_seq(seq_len, H, W, do_train):
-    generate_moving_seq.num_total_objects = 1
+    generate_moving_seq.num_total_objects = 10
 
     if do_train:
         bg_type = random.choice([True, False])
@@ -167,7 +167,7 @@ def generate_moving_seq(seq_len, H, W, do_train):
 
 
 generate_moving_seq.v = 0
-generate_moving_seq.num_objects = 1
+generate_moving_seq.num_objects = 10
 
 
 def gen_seq(seq_len, batch_size, H, W, do_train):

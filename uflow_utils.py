@@ -77,7 +77,7 @@ def resample(source, coords):
     coords[:, 0, :, :] = 2.0 * coords[:, 0, :, :].clone() / max(W - 1, 1) - 1.0
     coords[:, 1, :, :] = 2.0 * coords[:, 1, :, :].clone() / max(H - 1, 1) - 1.0
     coords = coords.permute(0, 2, 3, 1)
-    output = torch.nn.functional.grid_sample(source, coords)
+    output = torch.nn.functional.grid_sample(source, coords, align_corners=False)
     return output
 
 
@@ -225,7 +225,7 @@ def compute_all_loss(f1, warped_f2, flows):
         all_losses.append(ssim_loss)
 
     all_losses = torch.stack(all_losses)
-    return all_losses.mean()
+    return all_losses.sum()
 
 
 def _avg_pool3x3(x):
